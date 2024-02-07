@@ -1,6 +1,9 @@
 package login
 
-import "mssgserver/net"
+import (
+	"mssgserver/net"
+	"mssgserver/server/login/controller"
+)
 
 var Router = net.NewRouter()
 
@@ -9,5 +12,5 @@ func Init() {
 }
 
 func initRouter() {
-	初始化
+	controller.DefaultAccount.Router(Router)
 }

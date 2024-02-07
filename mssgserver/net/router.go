@@ -9,7 +9,7 @@ type group struct {
 	handlerMap map[string]HandlerFunc
 }
 
-func (g group) exec(name string, req *WsMsgReq, rsp *WsMsgRsp) {
+func (g *group) exec(name string, req *WsMsgReq, rsp *WsMsgRsp) {
 	h := g.handlerMap[name]
 	if h != nil {
 		h(req, rsp)
@@ -20,15 +20,15 @@ func (g *group) AddRoute(name string, handlerFunc HandlerFunc) {
 	g.handlerMap[name] = handlerFunc
 }
 
-type router struct {
+type Router struct {
 	group []*group
 }
 
-func NewRouter() *router {
-	return &router{}
+func NewRouter() *Router {
+	return &Router{}
 }
 
-func (r *router) Run(req *WsMsgReq, rsp *WsMsgRsp) {
+func (r *Router) Run(req *WsMsgReq, rsp *WsMsgRsp) {
 	strs := strings.Split(req.Body.Name, ".")
 	prefix := ""
 	name := ""
@@ -43,9 +43,10 @@ func (r *router) Run(req *WsMsgReq, rsp *WsMsgRsp) {
 	}
 }
 
-func (r *router) Group(prefix string) *group {
+func (r *Router) Group(prefix string) *group {
 	g := &group{
-		prefix: prefix,
+		prefix:     prefix,
+		handlerMap: make(map[string]HandlerFunc),
 	}
 	r.group = append(r.group, g)
 	return g

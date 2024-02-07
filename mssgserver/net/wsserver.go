@@ -2,7 +2,7 @@ package net
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"github.com/forgoer/openssl"
 	"github.com/gorilla/websocket"
 	"log"
@@ -12,7 +12,7 @@ import (
 
 type wsServer struct {
 	wsConn       *websocket.Conn
-	router       *router
+	router       *Router
 	outChan      chan *WsMsgRsp
 	Seq          int64
 	property     map[string]interface{}
@@ -28,7 +28,7 @@ func NewWsServer(wsConn *websocket.Conn) *wsServer {
 	}
 }
 
-func (w *wsServer) Router(router *router) {
+func (w *wsServer) Router(router *Router) {
 	w.router = router
 }
 
@@ -41,7 +41,11 @@ func (w *wsServer) SetProperty(key string, value interface{}) {
 func (w *wsServer) GetProperty(key string) (interface{}, error) {
 	w.propertyLock.Lock()
 	defer w.propertyLock.Unlock()
-	return w.property[key], nil
+	if value, ok := w.property[key]; ok {
+		return value, nil
+	} else {
+		return nil, errors.New("no property found")
+	}
 }
 
 func (w *wsServer) RemoveProperty(key string) {
@@ -94,7 +98,7 @@ func (w *wsServer) readMsgLoop() {
 			if err != nil {
 				log.Println("数据格式有误，解密失败:", err)
 				//出错后 发起握手
-				//w.Handshake()
+				w.Handshake()
 			} else {
 				data = d
 			}
@@ -119,11 +123,53 @@ func (w *wsServer) writeMsgLoop() {
 	for {
 		select {
 		case msg := <-w.outChan:
-			fmt.Println(msg)
+			w.Write(msg)
 		}
+	}
+}
+
+func (w *wsServer) Write(msg *WsMsgRsp) {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Println(err)
+	}
+	secretKey, err := w.GetProperty("secretKey")
+	if err == nil {
+		key := secretKey.(string)
+		data, _ = utils.AesCBCEncrypt(data, []byte(key), []byte(key), openssl.ZEROS_PADDING)
+	}
+	//压缩
+	if data, err := utils.Zip(data); err == nil {
+		w.wsConn.WriteMessage(websocket.BinaryMessage, data)
 	}
 }
 
 func (w *wsServer) Close() {
 	_ = w.wsConn.Close()
+}
+
+const HandshakeMsg = "handshake"
+
+func (w *wsServer) Handshake() {
+	secretKey := ""
+	key, err := w.GetProperty("secretKey")
+	if err == nil {
+		secretKey = key.(string)
+	} else {
+		secretKey = utils.RandSeq(16)
+	}
+	handshake := &Handshake{Key: secretKey}
+
+	body := &RspBody{Name: HandshakeMsg, Msg: handshake}
+
+	if data, err := json.Marshal(body); err == nil {
+		if secretKey != "" {
+			w.SetProperty("secretKey", secretKey)
+		} else {
+			w.RemoveProperty("secretKey")
+		}
+		if data, err := utils.Zip(data); err == nil {
+			w.wsConn.WriteMessage(websocket.BinaryMessage, data)
+		}
+	}
 }

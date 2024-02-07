@@ -8,7 +8,7 @@ import (
 
 type server struct {
 	addr   string
-	router *router
+	router *Router
 }
 
 func NewServer(addr string) *server {
@@ -17,7 +17,7 @@ func NewServer(addr string) *server {
 	}
 }
 
-func (s *server) Router(router *router) {
+func (s *server) Router(router *Router) {
 	s.router = router
 }
 
@@ -46,4 +46,5 @@ func (s *server) wsHandler(w http.ResponseWriter, r *http.Request) {
 	wsServer := NewWsServer(wsConn)
 	wsServer.Router(s.router)
 	wsServer.Start()
+	wsServer.Handshake()
 }

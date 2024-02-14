@@ -1,6 +1,8 @@
 package db
 
 import (
+	"fmt"
+	_ "github.com/go-sql-driver/mysql"
 	"log"
 	"mssgserver/config"
 	"xorm.io/xorm"
@@ -14,6 +16,29 @@ func TestDB() {
 		log.Println("数据库配置缺失", err)
 		panic(err)
 	}
-	Engine, err = xorm.NewEngine("mysql", "root:123@/test?charset=utf8")
+	dbConn := fmt.Sprintf(
+		"%s:%s@tcp(%s:%s)/%s?charset=utf8&parseTime=True&loc=Local",
+		mysqlConfig["user"],
+		mysqlConfig["password"],
+		mysqlConfig["host"],
+		mysqlConfig["port"],
+		mysqlConfig["dbname"],
+	)
+	Engine, err = xorm.NewEngine("mysql", dbConn)
+	if err != nil {
+		log.Println("数据库连接失败", err)
+		panic(err)
+	}
+	err = Engine.Ping()
+	if err != nil {
+		log.Println("数据库ping不通", err)
+		panic(err)
+	}
 
+	maxIdle := config.File.MustInt("mysql", "max_idle", 2)
+	maxConn := config.File.MustInt("mysql", "max_conn", 2)
+	Engine.SetMaxIdleConns(maxIdle)
+	Engine.SetMaxOpenConns(maxConn)
+	Engine.ShowSQL(true)
+	log.Println("数据库初始化完成...")
 }
